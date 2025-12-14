@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tor-unveil-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-tor_unveil}
+      POSTGRES_USER: ${DB_USER:-tor_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tor_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tor_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tor-unveil-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tor-unveil-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-tor_unveil}
+      DB_USER: ${DB_USER:-tor_user}
+      DB_PASSWORD: ${DB_PASSWORD:-tor_password}
+      BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
+      BACKEND_PORT: ${BACKEND_PORT:-8000}
+      DEBUG: ${DEBUG:-True}
+      DATA_SOURCE: ${DATA_SOURCE:-sample}
+      TOR_ONIONOO_API: ${TOR_ONIONOO_API:-https://onionoo.torproject.org}
+      DEFAULT_TOP_N: ${DEFAULT_TOP_N:-10}
+      DEFAULT_SIMULATION_COUNT: ${DEFAULT_SIMULATION_COUNT:-100}
+      DEFAULT_RANDOM_SEED: ${DEFAULT_RANDOM_SEED:-42}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - tor-unveil-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tor-unveil-frontend
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    stdin_open: true
+    tty: true
+    networks:
+      - tor-unveil-network
+
+volumes:
+  postgres_data:
+
+networks:
+  tor-unveil-network:
+    driver: bridge

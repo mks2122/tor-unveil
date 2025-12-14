@@ -1,0 +1,122 @@
+MIT License
+
+Copyright (c) 2025 TOR - Unveil Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ETHICAL USE DISCLAIMER
+
+This software is intended for RESEARCH AND EDUCATIONAL PURPOSES ONLY.
+
+By using this software, you agree to the following conditions:
+
+1. NO REAL TRAFFIC CAPTURE: This tool must not be used to capture, analyze, 
+   or store real network traffic from any source.
+
+2. NO USER DEANONYMIZATION: This tool must not be used in any attempt to 
+   deanonymize Tor users or compromise user privacy.
+
+3. PUBLIC DATA ONLY: Only use publicly available Tor relay metadata from 
+   official sources (e.g., Tor Onionoo API).
+
+4. SYNTHETIC TRAFFIC ONLY: All traffic patterns must be synthetically 
+   generated and not derived from real network captures.
+
+5. NO ATTACKS: This tool must not be used to perform attacks on the Tor 
+   network or any other network infrastructure.
+
+6. COMPLIANCE: Users must comply with all applicable laws and regulations 
+   in their jurisdiction.
+
+7. RESPONSIBLE DISCLOSURE: Any vulnerabilities or security concerns 
+   discovered must be responsibly disclosed to appropriate parties.
+
+The authors and contributors of this software:
+- Do not endorse or support any malicious use
+- Are not responsible for misuse by third parties
+- Provide no warranty for fitness for any particular purpose
+- Recommend consulting legal counsel before deployment
+
+This software is designed to demonstrate traffic analysis techniques in a 
+controlled, ethical manner for academic and research purposes.
+
+---
+
+THIRD-PARTY LICENSES
+
+This software uses the following open-source libraries and frameworks:
+
+Python Libraries:
+- FastAPI (MIT License)
+- SQLAlchemy (MIT License)
+- Pandas (BSD 3-Clause License)
+- NumPy (BSD 3-Clause License)
+- FastDTW (MIT License)
+- Requests (Apache License 2.0)
+- Uvicorn (BSD 3-Clause License)
+
+JavaScript/TypeScript Libraries:
+- React (MIT License)
+- TypeScript (Apache License 2.0)
+- D3.js (BSD 3-Clause License)
+- Recharts (MIT License)
+- Axios (MIT License)
+
+Infrastructure:
+- PostgreSQL (PostgreSQL License)
+- Docker (Apache License 2.0)
+
+All third-party licenses are included with their respective packages.
+
+---
+
+DATA SOURCES
+
+This software may optionally fetch data from:
+- Tor Onionoo API (https://onionoo.torproject.org/)
+  - Public relay directory information
+  - No authentication required
+  - Subject to Tor Project's terms of service
+
+Users are responsible for complying with the Tor Project's terms and 
+acceptable use policies when accessing their APIs.
+
+---
+
+ACADEMIC USE
+
+For academic publications using this software, please cite:
+
+TOR - Unveil: Peel the Onion
+A Web-Based Analytical Tool for Tor Relay Metadata and Traffic Pattern Correlation
+https://github.com/[your-repo]/tor-unveil
+2025
+
+---
+
+CONTACT
+
+For questions about appropriate use, licensing, or ethical concerns:
+- Review the documentation in the docs/ directory
+- Consult with your institution's ethics board
+- Contact the Tor Project for guidance on responsible research
+
+Last Updated: December 13, 2025
