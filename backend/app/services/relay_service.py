@@ -17,10 +17,36 @@ class RelayService:
     
     def load_sample_data(self) -> List[Relay]:
         """Load sample relay data from seed file"""
+        import os
+        
+        # Try multiple possible paths for the sample data file
+        possible_paths = [
+            "/database/seeds/sample_relays.json",
+            "/app/database/seeds/sample_relays.json",
+            "../database/seeds/sample_relays.json",
+            "./database/seeds/sample_relays.json",
+        ]
+        
+        sample_data = None
+        used_path = None
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                used_path = path
+                try:
+                    with open(path, "r") as f:
+                        sample_data = json.load(f)
+                    break
+                except Exception as e:
+                    logger.warning(f"Failed to read {path}: {e}")
+                    continue
+        
+        if not sample_data:
+            logger.error(f"Sample data file not found in any of: {possible_paths}")
+            return []
+        
         try:
-            with open("/app/../database/seeds/sample_relays.json", "r") as f:
-                sample_data = json.load(f)
-            
+            logger.info(f"Loading sample data from {used_path}")
             relays = []
             for relay_data in sample_data:
                 relay = Relay(**relay_data, data_source="sample")
@@ -31,9 +57,6 @@ class RelayService:
             logger.info(f"Loaded {len(relays)} sample relays")
             return relays
             
-        except FileNotFoundError:
-            logger.warning("Sample data file not found")
-            return []
         except Exception as e:
             logger.error(f"Error loading sample data: {e}")
             self.db.rollback()

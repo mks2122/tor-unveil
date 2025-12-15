@@ -24,10 +24,8 @@ const Dashboard: React.FC = () => {
       const stats = await getRelayStats();
       setRelayStats(stats);
       
-      // If no relays, refresh automatically
-      if (stats.total === 0) {
-        await handleRefreshRelays();
-      }
+      // Don't auto-refresh in sample mode to prevent infinite loops
+      // User can manually click "Refresh Relay Data" button
     } catch (err) {
       console.error('Failed to load relay stats:', err);
     }
@@ -209,6 +207,27 @@ const Dashboard: React.FC = () => {
             probable guard nodes based on synthetic traffic pattern correlation.
           </p>
           <PathDiagram />
+        </div>
+      )}
+
+      {!analysisResult && !loading && relayStats && relayStats.total === 0 && (
+        <div className="welcome-message">
+          <h2>⚠️ No Relay Data Available</h2>
+          <p>
+            Click the <strong>"Refresh Relay Data"</strong> button above to load relay metadata.
+          </p>
+          <p>
+            The application will load sample data or fetch live data from the Tor network 
+            based on your DATA_SOURCE configuration.
+          </p>
+          <div className="info-box">
+            <strong>Configuration:</strong> Check your .env file DATA_SOURCE setting
+            <ul>
+              <li><code>DATA_SOURCE=sample</code> - Use offline sample data</li>
+              <li><code>DATA_SOURCE=live</code> - Fetch from Tor Onionoo API</li>
+              <li><code>DATA_SOURCE=both</code> - Try live, fallback to sample</li>
+            </ul>
+          </div>
         </div>
       )}
     </div>
