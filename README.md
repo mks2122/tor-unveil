@@ -1,5 +1,6 @@
 # TOR - Unveil: Peel the Onion
 
+## Overview
 TOR - Unveil is a containerized research and educational tool that ingests **public Tor relay metadata** (Onionoo API or provided samples), generates **synthetic Tor-like entry/exit traffic**, correlates patterns via **Dynamic Time Warping (DTW)** and complementary metrics, and produces a **ranked list of probable guard (entry) nodes with confidence scores**. The project contains a FastAPI backend, a React + TypeScript dashboard, and PostgreSQL storage orchestrated with Docker Compose.
 
 ## ⚠️ Ethical Boundaries (What This Project Does and Does NOT Do)
@@ -14,7 +15,7 @@ TOR - Unveil is a containerized research and educational tool that ingests **pub
 ---
 
 ## Table of Contents
-- [What the project does](#tor---unveil-peel-the-onion)
+- [Overview](#overview)
 - [Repository map (every file & directory)](#repository-map-every-file--directory)
 - [Runtime services & Docker Compose](#runtime-services--docker-compose)
 - [Configuration & environment variables](#configuration--environment-variables)
@@ -275,8 +276,8 @@ npm start   # opens at http://localhost:3000
 
 ### Database access (from container)
 ```bash
-docker-compose exec tor-unveil-postgres psql -U ${DB_USER:-tor_user} -d ${DB_NAME:-tor_unveil}
-# (Service name alias also works: `docker-compose exec postgres ...`)
+docker-compose exec tor-unveil-postgres psql -U tor_user -d tor_unveil
+# (For custom credentials, swap `tor_user` / `tor_unveil`, or use the service alias: `docker-compose exec postgres ...`)
 ```
 
 ---
