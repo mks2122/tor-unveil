@@ -33,7 +33,7 @@ TOR - Unveil is a containerized research and educational tool that ingests **pub
 ## Repository Map (every file & directory)
 
 | Path | Purpose |
-| --- | --- |
+| ---- | ------- |
 | `docker-compose.yml` | Defines services: `postgres`, `backend` (FastAPI), `frontend` (React). Ports 5432/8000/3000; mounts volumes and health checks. |
 | `start.bat` / `stop.bat` | Windows helpers to build/up/down containers, wait for readiness, and open the dashboard. |
 | `.env.example` | Complete environment template for backend, database, and frontend (`REACT_APP_API_URL`). |
