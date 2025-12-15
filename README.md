@@ -53,7 +53,7 @@ TOR - Unveil is a containerized research and educational tool that ingests **pub
 - **postgres** (`postgres:15-alpine`)  
   - Env: `DB_NAME`, `DB_USER`, `DB_PASSWORD` (defaults from `.env.example`).  
   - Ports: `5432:5432`.  
-  - Volumes: `postgres_data`, `./database/migrations` auto-runs `init.sql`.  
+  - Volumes: `postgres_data` → `/var/lib/postgresql/data`, `./database/migrations` → `/docker-entrypoint-initdb.d` (auto-runs `init.sql`).  
   - Healthcheck: `pg_isready`.
 - **backend** (FastAPI)  
   - Built from `backend/Dockerfile`; command `uvicorn app.main:app --reload`.  
@@ -165,7 +165,7 @@ To configure: copy `.env.example` → `.env`, adjust values, restart containers.
 
 ### Backend dependencies & container
 - `backend/requirements.txt`: FastAPI, Uvicorn, SQLAlchemy, psycopg2-binary, alembic, pydantic/settings, python-dotenv, requests, aiohttp, pandas, numpy, scipy, fastdtw, python-multipart.
-- `backend/Dockerfile`: Python 3.10 slim, installs gcc + psql client, installs requirements, copies app, exposes 8000, runs Uvicorn.
+- `backend/Dockerfile`: Python 3.10 slim, installs gcc + `postgresql-client`, installs requirements, copies app, exposes 8000, runs Uvicorn.
 
 ---
 
@@ -275,7 +275,8 @@ npm start   # opens at http://localhost:3000
 
 ### Database access (from container)
 ```bash
-docker-compose exec postgres psql -U ${DB_USER:-tor_user} -d ${DB_NAME:-tor_unveil}
+docker-compose exec tor-unveil-postgres psql -U ${DB_USER:-tor_user} -d ${DB_NAME:-tor_unveil}
+# (Service name alias also works: `docker-compose exec postgres ...`)
 ```
 
 ---
