@@ -33,19 +33,19 @@ TOR - Unveil is a containerized research and educational tool that ingests **pub
 
 ## Repository Map (every file & directory)
 
-| Path | Purpose |
-| ---- | ------- |
-| `docker-compose.yml` | Defines services: `postgres`, `backend` (FastAPI), `frontend` (React). Ports 5432/8000/3000; mounts volumes and health checks. |
-| `start.bat` / `stop.bat` | Windows helpers to build/up/down containers, wait for readiness, and open the dashboard. |
-| `.env.example` | Complete environment template for backend, database, and frontend (`REACT_APP_API_URL`). |
-| `DEPLOYMENT_SUCCESS.md` | Deployment runbook + status snapshot describing resolved issues and management commands. |
-| `docs/` | In-depth docs: `ARCHITECTURE.md`, `IMPLEMENTATION_SUMMARY.md`, `TECHNOLOGIES.md`, `COMMANDS.md`, `QUICKSTART.md`, `TROUBLESHOOTING.md`. |
-| `database/migrations/init.sql` | Placeholder enabling `uuid-ossp`; SQLAlchemy normally creates tables. |
-| `database/seeds/sample_relays.json` | Sample relay dataset (guards/exits/middles) with bandwidth, uptime, geo, probabilities. |
-| `backend/` | FastAPI app, core analysis modules, SQLAlchemy models, requirements, Dockerfile. |
-| `frontend/` | React + TypeScript dashboard, components, services, Dockerfile, CSS assets. |
-| `LICENSE` | MIT license. |
-| `README.md` | This document. |
+Path | Purpose
+---- | -------
+`docker-compose.yml` | Defines services: `postgres`, `backend` (FastAPI), `frontend` (React). Ports 5432/8000/3000; mounts volumes and health checks.
+`start.bat` / `stop.bat` | Windows helpers to build/up/down containers, wait for readiness, and open the dashboard.
+`.env.example` | Complete environment template for backend, database, and frontend (`REACT_APP_API_URL`).
+`DEPLOYMENT_SUCCESS.md` | Deployment runbook + status snapshot describing resolved issues and management commands.
+`docs/` | In-depth docs: `ARCHITECTURE.md`, `IMPLEMENTATION_SUMMARY.md`, `TECHNOLOGIES.md`, `COMMANDS.md`, `QUICKSTART.md`, `TROUBLESHOOTING.md`.
+`database/migrations/init.sql` | Placeholder enabling `uuid-ossp`; SQLAlchemy normally creates tables.
+`database/seeds/sample_relays.json` | Sample relay dataset (guards/exits/middles) with bandwidth, uptime, geo, probabilities.
+`backend/` | FastAPI app, core analysis modules, SQLAlchemy models, requirements, Dockerfile.
+`frontend/` | React + TypeScript dashboard, components, services, Dockerfile, CSS assets.
+`LICENSE` | MIT license.
+`README.md` | This document.
 
 ---
 
@@ -80,22 +80,22 @@ Windows shortcuts: `start.bat` (builds, starts, opens dashboard) and `stop.bat` 
 
 Backed by `pydantic_settings.BaseSettings` in `backend/app/config.py` and `.env.example`:
 
-| Variable | Default | Where used |
-| --- | --- | --- |
-| `DB_HOST` | `postgres` | `config.Settings.DATABASE_URL` -> SQLAlchemy engine |
-| `DB_PORT` | `5432` | Database connection |
-| `DB_NAME` | `tor_unveil` | Database name |
-| `DB_USER` | `tor_user` | Database user |
-| `DB_PASSWORD` | `tor_password` | Database password |
-| `BACKEND_HOST` | `0.0.0.0` | Uvicorn host |
-| `BACKEND_PORT` | `8000` | Uvicorn port |
-| `DEBUG` | `True` | FastAPI debug toggle |
-| `DATA_SOURCE` | `sample` | Relay loading mode: `sample`, `live`, or `both` |
-| `TOR_ONIONOO_API` | `https://onionoo.torproject.org` | Metadata collector endpoint base |
-| `DEFAULT_TOP_N` | `10` | Default guard ranking length |
-| `DEFAULT_SIMULATION_COUNT` | `100` | Default simulations |
-| `DEFAULT_RANDOM_SEED` | `42` | Deterministic random seed |
-| `REACT_APP_API_URL` | `http://localhost:8000` | Frontend Axios base URL (`frontend/src/services/api.ts`) |
+Variable | Default | Where used
+-------- | ------- | ----------
+`DB_HOST` | `postgres` | `config.Settings.DATABASE_URL` -> SQLAlchemy engine
+`DB_PORT` | `5432` | Database connection
+`DB_NAME` | `tor_unveil` | Database name
+`DB_USER` | `tor_user` | Database user
+`DB_PASSWORD` | `tor_password` | Database password
+`BACKEND_HOST` | `0.0.0.0` | Uvicorn host
+`BACKEND_PORT` | `8000` | Uvicorn port
+`DEBUG` | `True` | FastAPI debug toggle
+`DATA_SOURCE` | `sample` | Relay loading mode: `sample`, `live`, or `both`
+`TOR_ONIONOO_API` | `https://onionoo.torproject.org` | Metadata collector endpoint base
+`DEFAULT_TOP_N` | `10` | Default guard ranking length
+`DEFAULT_SIMULATION_COUNT` | `100` | Default simulations
+`DEFAULT_RANDOM_SEED` | `42` | Deterministic random seed
+`REACT_APP_API_URL` | `http://localhost:8000` | Frontend Axios base URL (`frontend/src/services/api.ts`)
 
 To configure: copy `.env.example` → `.env`, adjust values, restart containers.
 
@@ -174,20 +174,20 @@ To configure: copy `.env.example` → `.env`, adjust values, restart containers.
 
 FastAPI automatically documents endpoints at `http://localhost:8000/docs`. Summary:
 
-| Method & Path | Request model/body | Response highlights |
-| --- | --- | --- |
-| `GET /` | – | API metadata + docs link |
-| `GET /health` | – | `{status:"healthy"}` |
-| `POST /api/relays/refresh` | none | message, count, source |
-| `GET /api/relays` | query: `relay_type?`, `country?`, `limit` | List of relays (pydantic `RelayResponse`) |
-| `GET /api/relays/stats` | – | `{total, guard, exit, middle}` |
-| `GET /api/relays/guards` | `limit` | guard list |
-| `GET /api/relays/{fingerprint}` | path fingerprint | single relay or 404 |
-| `POST /api/traffic/generate` | JSON `{num_bursts, random_seed, pattern_type}` | `{pattern, features}` |
-| `POST /api/traffic/generate-correlated` | query `{num_bursts, random_seed, time_jitter}` | `{entry:{pattern,features}, exit:{pattern,features}}` |
-| `POST /api/analysis/run` | JSON `{simulation_count, top_n, random_seed}` | `{analysis_id, ranked_guards[], statistics, configuration, execution_time}` |
-| `GET /api/analysis/{analysis_id}` | path `analysis_id` | stored result or 404 |
-| `GET /api/analysis` | query `limit` | recent analyses list |
+Method & Path | Request model/body | Response highlights
+------------- | ----------------- | -------------------
+`GET /` | – | API metadata + docs link
+`GET /health` | – | `{status:"healthy"}`
+`POST /api/relays/refresh` | none | message, count, source
+`GET /api/relays` | query: `relay_type?`, `country?`, `limit` | List of relays (pydantic `RelayResponse`)
+`GET /api/relays/stats` | – | `{total, guard, exit, middle}`
+`GET /api/relays/guards` | `limit` | guard list
+`GET /api/relays/{fingerprint}` | path fingerprint | single relay or 404
+`POST /api/traffic/generate` | JSON `{num_bursts, random_seed, pattern_type}` | `{pattern, features}`
+`POST /api/traffic/generate-correlated` | query `{num_bursts, random_seed, time_jitter}` | `{entry:{pattern,features}, exit:{pattern,features}}`
+`POST /api/analysis/run` | JSON `{simulation_count, top_n, random_seed}` | `{analysis_id, ranked_guards[], statistics, configuration, execution_time}`
+`GET /api/analysis/{analysis_id}` | path `analysis_id` | stored result or 404
+`GET /api/analysis` | query `limit` | recent analyses list
 
 Data contracts are also typed on the frontend in `frontend/src/services/api.ts`.
 
