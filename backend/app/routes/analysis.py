@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.services.analysis_service import AnalysisService
+from app.models.timeline_event import TimelineEvent
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
@@ -61,3 +62,15 @@ async def get_recent_analyses(limit: int = 10, db: Session = Depends(get_db)):
     analysis_service = AnalysisService(db)
     results = analysis_service.get_recent_analyses(limit=limit)
     return results
+
+@router.get("/timeline/{analysis_id}")
+async def get_timeline_events(analysis_id: int, db: Session = Depends(get_db)):
+    """Get timeline events for an analysis"""
+    events = db.query(TimelineEvent).filter(
+        TimelineEvent.analysis_id == analysis_id
+    ).order_by(TimelineEvent.timestamp).all()
+    
+    return {
+        "analysis_id": analysis_id,
+        "events": [e.to_dict() for e in events]
+    }

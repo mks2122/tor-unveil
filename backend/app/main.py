@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routes import relays, traffic, analysis
+from app.routes import relays, traffic, analysis, export
 from app.database import engine, Base
 
 # Create database tables
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(relays.router, prefix="/api/relays", tags=["relays"])
 app.include_router(traffic.router, prefix="/api/traffic", tags=["traffic"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
+app.include_router(export.router, tags=["export"])
 
 @app.get("/")
 async def root():

@@ -31,6 +31,7 @@ export interface GuardNode {
 
 export interface AnalysisResult {
   analysis_id: string;
+  analysis_db_id?: number;
   ranked_guards: GuardNode[];
   statistics: any;
   configuration: any;

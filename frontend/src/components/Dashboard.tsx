@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import GuardNodeTable from './GuardNodeTable';
 import ProbabilityChart from './ProbabilityChart';
 import PathDiagram from './PathDiagram';
+import TimelineView from './TimelineView';
 import { runAnalysis, getRelayStats, refreshRelays, AnalysisResult, RelayStats } from '../services/api';
 
 const Dashboard: React.FC = () => {
@@ -51,6 +52,8 @@ const Dashboard: React.FC = () => {
       setError(null);
       
       const result = await runAnalysis(config);
+      console.log('Dashboard: Analysis result:', result);
+      console.log('Dashboard: analysis_db_id:', result.analysis_db_id);
       setAnalysisResult(result);
     } catch (err: any) {
       setError(`Analysis failed: ${err.response?.data?.detail || err.message}`);
@@ -167,11 +170,39 @@ const Dashboard: React.FC = () => {
                 Guards Analyzed: {analysisResult.configuration.total_guards_analyzed}
               </span>
             </div>
+            <div className="export-buttons">
+              <button 
+                className="btn btn-export"
+                onClick={() => window.open(`http://localhost:8000/api/export/json/${analysisResult.analysis_db_id || 'latest'}`, '_blank')}
+              >
+                📄 Export JSON
+              </button>
+              <button 
+                className="btn btn-export"
+                onClick={() => window.open(`http://localhost:8000/api/export/csv/${analysisResult.analysis_db_id || 'latest'}`, '_blank')}
+              >
+                📊 Export CSV
+              </button>
+              <button 
+                className="btn btn-export"
+                onClick={() => window.open(`http://localhost:8000/api/export/pdf/${analysisResult.analysis_db_id || 'latest'}`, '_blank')}
+              >
+                📑 Export Forensic Report (PDF)
+              </button>
+            </div>
           </div>
 
           <GuardNodeTable guards={analysisResult.ranked_guards} />
           <ProbabilityChart guards={analysisResult.ranked_guards} />
-          <PathDiagram />
+          
+          <PathDiagram 
+            entryNode={analysisResult.ranked_guards[0]?.fingerprint}
+            exitNode="EXIT_NODE"
+            entryCountry={analysisResult.ranked_guards[0]?.country}
+            entryCountryName={analysisResult.ranked_guards[0]?.country_name}
+          />
+
+          <TimelineView analysisId={analysisResult.analysis_db_id ?? null} />
 
           <div className="statistics-summary">
             <h3>Statistical Summary</h3>
