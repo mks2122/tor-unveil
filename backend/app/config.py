@@ -3,11 +3,11 @@ from typing import Literal
 
 class Settings(BaseSettings):
     # Database
-    DB_HOST: str = "postgres"
+    DB_HOST: str = "127.0.0.1"
     DB_PORT: int = 5432
     DB_NAME: str = "tor_unveil"
-    DB_USER: str = "tor_user"
-    DB_PASSWORD: str = "tor_password"
+    DB_USER: str = "kausik"
+    DB_PASSWORD: str = "kausik"
     
     # Backend
     BACKEND_HOST: str = "0.0.0.0"

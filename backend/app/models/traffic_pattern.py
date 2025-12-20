@@ -14,6 +14,7 @@ class TrafficPattern(Base):
     # Raw data
     timestamps = Column(JSON)  # List of timestamp values
     packet_sizes = Column(JSON)  # List of packet sizes
+    source_location = Column(JSON)  # Synthetic metadata about where traffic originated
     
     # Extracted features
     feature_vector = Column(JSON)  # Computed feature vector

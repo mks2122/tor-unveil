@@ -56,7 +56,7 @@ body {
 
 .controls-panel {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 30px;
   padding: 30px;
   background: #f8f9fa;
@@ -106,6 +106,60 @@ body {
   display: grid;
   gap: 15px;
   margin-bottom: 20px;
+}
+
+.tor-form {
+  display: grid;
+  gap: 12px;
+}
+
+.tor-form input {
+  padding: 10px 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.tor-form input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.tor-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #f5c6cb;
+  font-size: 0.9rem;
+}
+
+.tor-result {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.tor-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+  color: #495057;
+}
+
+.tor-preview {
+  background: #111827;
+  color: #e5e7eb;
+  padding: 12px;
+  border-radius: 6px;
+  max-height: 240px;
+  overflow: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.9rem;
 }
 
 .config-item {

@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import GuardNodeTable from './GuardNodeTable';
 import ProbabilityChart from './ProbabilityChart';
 import PathDiagram from './PathDiagram';
-import { runAnalysis, getRelayStats, refreshRelays, AnalysisResult, RelayStats } from '../services/api';
+import { runAnalysis, getRelayStats, refreshRelays, torFetch, AnalysisResult, RelayStats, TorFetchResponse } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [relayStats, setRelayStats] = useState<RelayStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [torLoading, setTorLoading] = useState(false);
+  const [torError, setTorError] = useState<string | null>(null);
+  const [torUrl, setTorUrl] = useState('https://check.torproject.org');
+  const [torResult, setTorResult] = useState<TorFetchResponse | null>(null);
   const [config, setConfig] = useState({
     simulation_count: 100,
     top_n: 10,
@@ -59,6 +63,22 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleTorFetch = async () => {
+    try {
+      setTorLoading(true);
+      setTorError(null);
+      const result = await torFetch({
+        url: torUrl,
+        max_bytes: 1024,
+      });
+      setTorResult(result);
+    } catch (err: any) {
+      setTorError(`Tor fetch failed: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setTorLoading(false);
+    }
+  };
+
   const handleConfigChange = (key: string, value: number) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
@@ -106,6 +126,38 @@ const Dashboard: React.FC = () => {
           >
             Refresh Relay Data
           </button>
+        </div>
+
+        <div className="config-section">
+          <h3>Tor Proxy Test</h3>
+          <div className="tor-form">
+            <label htmlFor="torUrl">URL to fetch via Tor:</label>
+            <input
+              id="torUrl"
+              type="text"
+              value={torUrl}
+              onChange={(e) => setTorUrl(e.target.value)}
+              placeholder="https://check.torproject.org"
+            />
+            <button
+              className="btn btn-secondary"
+              onClick={handleTorFetch}
+              disabled={torLoading || !torUrl}
+            >
+              {torLoading ? 'Fetching via Tor...' : 'Fetch via Tor'}
+            </button>
+            {torError && <div className="tor-error">{torError}</div>}
+            {torResult && (
+              <div className="tor-result">
+                <div className="tor-meta">
+                  <span>Status: {torResult.status_code}</span>
+                  <span>Latency: {torResult.elapsed_ms} ms</span>
+                  {torResult.preview_truncated && <span>(preview truncated)</span>}
+                </div>
+                <pre className="tor-preview">{torResult.text_preview}</pre>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="config-section">

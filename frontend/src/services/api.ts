@@ -44,6 +44,23 @@ export interface RelayStats {
   middle: number;
 }
 
+export interface TorFetchRequest {
+  url: string;
+  proxy_url?: string;
+  timeout?: number;
+  max_bytes?: number;
+  headers?: Record<string, string>;
+}
+
+export interface TorFetchResponse {
+  url: string;
+  status_code: number;
+  elapsed_ms: number;
+  headers: Record<string, string>;
+  text_preview: string;
+  preview_truncated: boolean;
+}
+
 export const runAnalysis = async (request: AnalysisRequest): Promise<AnalysisResult> => {
   const response = await api.post('/api/analysis/run', request);
   return response.data;
@@ -61,6 +78,11 @@ export const refreshRelays = async (): Promise<any> => {
 
 export const getRecentAnalyses = async (limit: number = 10): Promise<any[]> => {
   const response = await api.get(`/api/analysis/?limit=${limit}`);
+  return response.data;
+};
+
+export const torFetch = async (request: TorFetchRequest): Promise<TorFetchResponse> => {
+  const response = await api.post('/api/traffic/tor-fetch', request);
   return response.data;
 };
 
