@@ -98,9 +98,9 @@ class ForensicExporter:
             for idx, item in enumerate(analysis_data[:10], 1):
                 summary_data.append([
                     str(idx),
-                    item.get('guard_fingerprint', 'N/A')[:20] + '...',
-                    f"{item.get('confidence_score', 0):.2%}",
-                    item.get('guard_country', 'N/A')
+                    item.get('fingerprint', 'N/A')[:20] + '...',
+                    f"{item.get('confidence_score', 0):.2f}%",
+                    item.get('country', 'N/A')
                 ])
             
             summary_table = Table(summary_data, colWidths=[0.7*inch, 2.5*inch, 1.3*inch, 1.5*inch])
@@ -223,11 +223,11 @@ class ForensicExporter:
             for idx, item in enumerate(analysis_data, 1):
                 writer.writerow([
                     idx,
-                    item.get('guard_fingerprint', 'N/A'),
-                    f"{item.get('confidence_score', 0):.4f}",
-                    item.get('guard_country', 'N/A'),
-                    item.get('guard_bandwidth', 'N/A'),
-                    f"{item.get('probability', 0):.4f}"
+                    item.get('fingerprint', 'N/A'),
+                    f"{item.get('confidence_score', 0):.2f}",
+                    item.get('country', 'N/A'),
+                    item.get('bandwidth', 'N/A'),
+                    f"{item.get('probability_score', 0):.4f}"
                 ])
         
         buffer.seek(0)

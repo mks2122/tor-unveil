@@ -190,6 +190,8 @@ class AnalysisService:
             self.db.refresh(result)
             analysis_db_id = result.id
             
+            logger.info(f"Analysis saved with DB ID: {analysis_db_id}")
+            
             # Timeline: analysis started (now that we have an ID)
             self._create_timeline_event(
                 analysis_db_id,
@@ -266,6 +268,8 @@ class AnalysisService:
             )
 
             logger.info(f"Analysis {analysis_id} completed in {execution_time:.2f}s")
+            
+            logger.info(f"Returning analysis_db_id: {analysis_db_id}")
 
             return {
                 "analysis_id": analysis_id,

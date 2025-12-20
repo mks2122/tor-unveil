@@ -15,6 +15,7 @@ class AnalysisRequest(BaseModel):
 
 class AnalysisResponse(BaseModel):
     analysis_id: str
+    analysis_db_id: int = None
     ranked_guards: List[Dict[str, Any]]
     statistics: Dict[str, Any]
     configuration: Dict[str, Any]
