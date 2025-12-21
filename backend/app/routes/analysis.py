@@ -12,6 +12,9 @@ class AnalysisRequest(BaseModel):
     simulation_count: int = 100
     top_n: int = 10
     random_seed: int = 42
+    mode: str = "simulated"  # "simulated" or "real"
+    upload_id: str = None  # For real mode
+    guard_location: str = "United States"  # Simulated guard node location/country
 
 class AnalysisResponse(BaseModel):
     analysis_id: str
@@ -26,20 +29,33 @@ async def run_analysis(request: AnalysisRequest, db: Session = Depends(get_db)):
     """
     Run complete traffic analysis to identify probable guard nodes
     
+    Supports two modes:
+    - simulated: Uses synthetic traffic patterns (default)
+    - real: Uses uploaded real traffic logs
+    
     This endpoint:
     1. Retrieves guard relays from the database
-    2. Generates synthetic traffic patterns
+    2. Generates/parses traffic patterns based on mode
     3. Correlates entry/exit patterns
     4. Scores and ranks guard nodes
     5. Returns ranked results with confidence scores
     """
     try:
         analysis_service = AnalysisService(db)
-        result = analysis_service.run_analysis(
-            simulation_count=request.simulation_count,
-            top_n=request.top_n,
-            random_seed=request.random_seed
-        )
+        
+        if request.mode == "simulated":
+            # Use existing simulation logic
+            result = analysis_service.run_analysis(
+                simulation_count=request.simulation_count,
+                top_n=request.top_n,
+                random_seed=request.random_seed
+            )
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Use /api/traffic/ingest-realtime for real traffic analysis"
+            )
+        
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

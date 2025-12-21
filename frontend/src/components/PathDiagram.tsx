@@ -354,6 +354,7 @@ const PathDiagram: React.FC<PathDiagramProps> = ({ entryNode, exitNode, entryCou
       .attr('fill', '#2c3e50')
       .text('TOR Network Path Visualization');
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryNode, exitNode]);
 
   return (

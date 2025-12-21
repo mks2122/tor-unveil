@@ -13,6 +13,7 @@ export interface AnalysisRequest {
   simulation_count: number;
   top_n: number;
   random_seed: number;
+  guard_location?: string;
 }
 
 export interface GuardNode {
@@ -62,6 +63,28 @@ export const refreshRelays = async (): Promise<any> => {
 
 export const getRecentAnalyses = async (limit: number = 10): Promise<any[]> => {
   const response = await api.get(`/api/analysis/?limit=${limit}`);
+  return response.data;
+};
+
+export interface RealtimeAnalysis {
+  analysis_id: string;
+  mode: string;
+  exit_fingerprint: string | null;
+  exit_ip: string | null;
+  ranked_guards: any[];
+  statistics: any;
+  execution_time: number;
+  created_at: string;
+  status: string;
+}
+
+export const getRealtimeAnalyses = async (limit: number = 10): Promise<{ count: number; analyses: RealtimeAnalysis[] }> => {
+  const response = await api.get(`/api/traffic/realtime-analyses?limit=${limit}`);
+  return response.data;
+};
+
+export const getTrafficStatus = async (): Promise<any> => {
+  const response = await api.get('/api/traffic/status');
   return response.data;
 };
 
