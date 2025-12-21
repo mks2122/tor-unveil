@@ -496,3 +496,157 @@ body {
     padding: 8px;
   }
 }
+
+/* Real-Time Analysis Section */
+.realtime-section {
+  padding: 30px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: white;
+  margin-top: 20px;
+}
+
+.realtime-section h2 {
+  margin-bottom: 10px;
+  color: #ff6b6b;
+}
+
+.realtime-description {
+  color: #a0a0a0;
+  margin-bottom: 20px;
+}
+
+.realtime-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #0f0f23;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.realtime-table th {
+  background: #1a1a2e;
+  color: #ff6b6b;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.realtime-table td {
+  padding: 12px;
+  border-bottom: 1px solid #2a2a4e;
+  color: #e0e0e0;
+}
+
+.realtime-table tr:hover {
+  background: #1f1f3a;
+}
+
+.realtime-table tr.selected {
+  background: #2a2a5e;
+  border-left: 3px solid #ff6b6b;
+}
+
+.realtime-table code {
+  background: #2a2a4e;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.probability-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  background: #667eea;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+}
+
+.btn-small:hover {
+  background: #764ba2;
+}
+
+.realtime-details {
+  margin-top: 20px;
+  padding: 20px;
+  background: #0f0f23;
+  border-radius: 8px;
+  border: 1px solid #2a2a4e;
+}
+
+.realtime-details h3 {
+  color: #ff6b6b;
+  margin-bottom: 15px;
+}
+
+.realtime-details h4 {
+  color: #667eea;
+  margin: 15px 0 10px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.detail-grid div {
+  padding: 8px;
+  background: #1a1a2e;
+  border-radius: 4px;
+}
+
+.guards-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.guards-mini-table th {
+  background: #1a1a2e;
+  color: #667eea;
+  padding: 10px;
+  text-align: left;
+}
+
+.guards-mini-table td {
+  padding: 10px;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.guards-mini-table code {
+  background: #2a2a4e;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.info-box {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  color: #333;
+}
+
+.info-box ol {
+  margin-left: 20px;
+  margin-top: 10px;
+}
+
+.info-box code {
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}

@@ -8,6 +8,8 @@ from app.modules.feature_extractor import FeatureExtractor
 from app.modules.correlation_engine import CorrelationEngine
 from app.modules.probability_scorer import ProbabilityScorer
 from app.modules.iterative_learner import IterativeLearner
+from app.modules.onionoo_client import OnionooClient
+from app.modules.traffic_parser import TrafficParser
 from typing import Dict, Any, List
 from datetime import datetime
 import logging
@@ -25,6 +27,8 @@ class AnalysisService:
         self.feature_extractor = FeatureExtractor()
         self.correlation_engine = CorrelationEngine()
         self.learner = IterativeLearner(db)
+        self.onionoo_client = OnionooClient(db)
+        self.traffic_parser = TrafficParser()
     
     def run_analysis(self,
                     simulation_count: int = 100,
@@ -346,6 +350,223 @@ class AnalysisService:
             "execution_time": result.execution_time_seconds,
             "created_at": result.created_at.isoformat() if result.created_at else None
         }
+
+    def run_realtime_analysis(self, client_logs: List[Dict], server_logs: List[Dict], 
+                             metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Analyze real-time traffic from honeypot
+        
+        Args:
+            client_logs: Client-side timing logs
+            server_logs: Server-side request logs
+            metadata: Additional session metadata
+            
+        Returns:
+            Analysis results with guard node identification
+        """
+        start_time = time.time()
+        analysis_id = str(uuid.uuid4())
+        
+        logger.info(f"Starting real-time analysis {analysis_id}")
+        
+        try:
+            # Parse real traffic logs into patterns
+            entry_pattern, exit_pattern, parsed_metadata = self.traffic_parser.parse_realtime_request({
+                "client_logs": client_logs,
+                "server_logs": server_logs,
+                "metadata": metadata or {}
+            })
+            
+            # Get exit node info from IP
+            exit_ip = parsed_metadata.get("exit_ip")
+            exit_node = None
+            exit_fingerprint = None
+            
+            if exit_ip:
+                logger.info(f"Looking up exit node for IP: {exit_ip}")
+                exit_node = self.onionoo_client.get_relay_by_ip(exit_ip)
+                if exit_node:
+                    exit_fingerprint = exit_node.get("fingerprint")
+                    logger.info(f"Found exit node: {exit_fingerprint}")
+            
+            # Extract features
+            entry_features = self.feature_extractor.extract_features(entry_pattern)
+            exit_features = self.feature_extractor.extract_features(exit_pattern)
+            
+            # Get guard relays
+            guard_relays = self.relay_service.get_guard_relays()
+            if not guard_relays:
+                raise ValueError("No guard relays available for analysis")
+            
+            logger.info(f"Correlating against {len(guard_relays)} guard relays")
+            
+            # Build relay metadata list for normalization
+            all_relays_metadata = []
+            for guard in guard_relays:
+                all_relays_metadata.append({
+                    "fingerprint": guard.fingerprint,
+                    "nickname": guard.nickname,
+                    "bandwidth": guard.bandwidth or 0,
+                    "uptime": guard.uptime or 0,
+                    "consensus_weight": guard.consensus_weight or 0,
+                    "country": guard.country
+                })
+            
+            # Create scorer instance
+            scorer = ProbabilityScorer()
+            
+            # Correlate patterns with each guard
+            guard_scores = []
+            for guard in guard_relays:
+                # Use correlation engine
+                score, detailed = self.correlation_engine.correlation_score(
+                    entry_pattern, exit_pattern,
+                    entry_features, exit_features,
+                    entry_timestamp=datetime.utcnow(),
+                    exit_timestamp=datetime.utcnow()
+                )
+                
+                # Build relay metadata for this guard
+                relay_metadata = {
+                    "fingerprint": guard.fingerprint,
+                    "nickname": guard.nickname,
+                    "bandwidth": guard.bandwidth or 0,
+                    "uptime": guard.uptime or 0,
+                    "consensus_weight": guard.consensus_weight or 0,
+                    "country": guard.country
+                }
+                
+                # Score guard node using instance method
+                prob_score, components = scorer.calculate_relay_score(
+                    score,
+                    relay_metadata,
+                    all_relays_metadata
+                )
+                
+                guard_scores.append({
+                    "fingerprint": guard.fingerprint,
+                    "nickname": guard.nickname,
+                    "probability": prob_score,
+                    "correlation_score": score,
+                    "bandwidth": guard.bandwidth,
+                    "country": guard.country
+                })
+            
+            # Sort by probability
+            guard_scores.sort(key=lambda x: x["probability"], reverse=True)
+            top_guards = guard_scores[:10]
+            
+            execution_time = time.time() - start_time
+            
+            result = {
+                "analysis_id": analysis_id,
+                "mode": "real",
+                "ranked_guards": top_guards,
+                "exit_node": {
+                    "ip": exit_ip,
+                    "fingerprint": exit_fingerprint,
+                    "details": exit_node
+                } if exit_node else None,
+                "statistics": {
+                    "total_guards_analyzed": len(guard_relays),
+                    "entry_packets": entry_pattern["total_packets"],
+                    "exit_packets": exit_pattern["total_packets"],
+                    "traffic_duration": entry_pattern["duration"],
+                    "top_guard_probability": top_guards[0]["probability"] if top_guards else 0
+                },
+                "patterns": {
+                    "entry": entry_pattern,
+                    "exit": exit_pattern
+                },
+                "execution_time": execution_time,
+                "metadata": parsed_metadata
+            }
+            
+            # Store real-time analysis result in database
+            self._store_realtime_result(result)
+            
+            logger.info(f"Real-time analysis complete. Top guard: {top_guards[0]['fingerprint'] if top_guards else 'None'} "
+                       f"({top_guards[0]['probability']:.2%} probability)")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Real-time analysis failed: {e}")
+            raise
+    
+    def _store_realtime_result(self, result: Dict[str, Any]):
+        """Store real-time analysis result for dashboard display"""
+        try:
+            from sqlalchemy import text
+            import json
+            
+            query = text("""
+                INSERT INTO traffic_uploads 
+                (upload_id, filename, parsed_entry_patterns, parsed_exit_patterns, 
+                 exit_node_fingerprint, exit_node_ip, metadata, status)
+                VALUES (:upload_id, :filename, :entry_patterns, :exit_patterns,
+                        :exit_fingerprint, :exit_ip, :metadata, 'analyzed')
+            """)
+            
+            self.db.execute(
+                query,
+                {
+                    "upload_id": result["analysis_id"],
+                    "filename": "realtime_capture",
+                    "entry_patterns": json.dumps(result.get("patterns", {}).get("entry", {})),
+                    "exit_patterns": json.dumps(result.get("patterns", {}).get("exit", {})),
+                    "exit_fingerprint": result.get("exit_node", {}).get("fingerprint") if result.get("exit_node") else None,
+                    "exit_ip": result.get("exit_node", {}).get("ip") if result.get("exit_node") else None,
+                    "metadata": json.dumps({
+                        "ranked_guards": result.get("ranked_guards", []),
+                        "statistics": result.get("statistics", {}),
+                        "execution_time": result.get("execution_time"),
+                        "mode": "real"
+                    })
+                }
+            )
+            self.db.commit()
+            logger.info(f"Stored real-time analysis result: {result['analysis_id']}")
+        except Exception as e:
+            logger.error(f"Failed to store real-time result: {e}")
+            self.db.rollback()
+    
+    def get_realtime_analyses(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent real-time analysis results"""
+        try:
+            from sqlalchemy import text
+            import json
+            
+            query = text("""
+                SELECT upload_id, filename, exit_node_fingerprint, exit_node_ip, 
+                       metadata, upload_timestamp, status
+                FROM traffic_uploads
+                WHERE status = 'analyzed'
+                ORDER BY upload_timestamp DESC
+                LIMIT :limit
+            """)
+            
+            results = self.db.execute(query, {"limit": limit}).fetchall()
+            
+            analyses = []
+            for row in results:
+                metadata = row[4] if isinstance(row[4], dict) else json.loads(row[4]) if row[4] else {}
+                analyses.append({
+                    "analysis_id": row[0],
+                    "mode": "real",
+                    "exit_fingerprint": row[2],
+                    "exit_ip": row[3],
+                    "ranked_guards": metadata.get("ranked_guards", []),
+                    "statistics": metadata.get("statistics", {}),
+                    "execution_time": metadata.get("execution_time"),
+                    "created_at": row[5].isoformat() if row[5] else None,
+                    "status": row[6]
+                })
+            
+            return analyses
+        except Exception as e:
+            logger.error(f"Failed to get real-time analyses: {e}")
+            return []
 
     def get_recent_analyses(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent analysis results"""

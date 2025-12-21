@@ -11,30 +11,30 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Users Table (Clerk integration)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    
+
     -- Clerk user ID (from Clerk authentication)
     clerk_id VARCHAR(255) UNIQUE NOT NULL,
-    
+
     -- User identification
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
-    
+
     -- User role/type: 'public', 'police', 'admin'
     -- Automatically assigned based on email domain:
     --   - stjosephs.ac.in or tn.gov.in → 'police'
     --   - all others → 'public'
     user_type VARCHAR(20) NOT NULL DEFAULT 'public' CHECK (user_type IN ('public', 'police', 'admin')),
-    
+
     -- Status flags
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     is_verified BOOLEAN NOT NULL DEFAULT TRUE,  -- Clerk handles verification
     email_verified BOOLEAN NOT NULL DEFAULT TRUE,
-    
+
     -- Metadata
     profile_data TEXT,  -- JSON data
     last_login TIMESTAMP WITH TIME ZONE,
-    
+
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE
@@ -56,15 +56,15 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     clerk_session_id VARCHAR(512),
-    
+
     -- Session metadata
     ip_address VARCHAR(45),  -- IPv6 support
     user_agent VARCHAR(512),
     device_info TEXT,  -- JSON data
-    
+
     -- Status
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    
+
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP WITH TIME ZONE,
@@ -142,16 +142,3 @@ CREATE TABLE IF NOT EXISTS node_correlations (
 
 CREATE INDEX idx_correlations_analysis ON node_correlations(analysis_id);
 CREATE INDEX idx_correlations_nodes ON node_correlations(entry_fingerprint, exit_fingerprint);
-
-
--- ============================================================
--- SEED DATA (Development Only)
--- ============================================================
-
--- NOTE: With Clerk authentication, users are created via webhooks
--- To create an admin user:
--- 1. Sign up through Clerk frontend
--- 2. Find the user in the database
--- 3. Run: UPDATE users SET user_type = 'admin' WHERE email = 'your-email@example.com';
-
--- No seed data needed - all users come from Clerk!
