@@ -4,6 +4,86 @@
 -- Enable extensions if needed
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- ============================================================
+-- USER AUTHENTICATION TABLES (Clerk-based)
+-- ============================================================
+
+-- Users Table (Clerk integration)
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    
+    -- Clerk user ID (from Clerk authentication)
+    clerk_id VARCHAR(255) UNIQUE NOT NULL,
+    
+    -- User identification
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    
+    -- User role/type: 'public', 'police', 'admin'
+    -- Automatically assigned based on email domain:
+    --   - stjosephs.ac.in or tn.gov.in → 'police'
+    --   - all others → 'public'
+    user_type VARCHAR(20) NOT NULL DEFAULT 'public' CHECK (user_type IN ('public', 'police', 'admin')),
+    
+    -- Status flags
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_verified BOOLEAN NOT NULL DEFAULT TRUE,  -- Clerk handles verification
+    email_verified BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    -- Metadata
+    profile_data TEXT,  -- JSON data
+    last_login TIMESTAMP WITH TIME ZONE,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Indexes for users table
+CREATE INDEX idx_users_clerk_id ON users(clerk_id);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_type ON users(user_type);
+CREATE INDEX idx_users_active ON users(is_active);
+
+COMMENT ON TABLE users IS 'Core user information table - integrated with Clerk authentication';
+COMMENT ON COLUMN users.clerk_id IS 'Clerk user ID from Clerk authentication service';
+COMMENT ON COLUMN users.user_type IS 'User role: public (general users), police (stjosephs.ac.in or tn.gov.in), admin (system administrators)';
+
+
+-- User Sessions Table (for additional session tracking)
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    clerk_session_id VARCHAR(512),
+    
+    -- Session metadata
+    ip_address VARCHAR(45),  -- IPv6 support
+    user_agent VARCHAR(512),
+    device_info TEXT,  -- JSON data
+    
+    -- Status
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for user_sessions table
+CREATE INDEX idx_sessions_user ON user_sessions(user_id);
+CREATE INDEX idx_sessions_clerk_session ON user_sessions(clerk_session_id);
+CREATE INDEX idx_sessions_active ON user_sessions(is_active);
+CREATE INDEX idx_sessions_expires ON user_sessions(expires_at);
+
+COMMENT ON TABLE user_sessions IS 'User sessions tracking - supplementary to Clerk session management';
+
+
+-- ============================================================
+-- ANALYSIS TABLES
+-- ============================================================
+
 -- Timeline Events Table
 CREATE TABLE IF NOT EXISTS timeline_events (
     id SERIAL PRIMARY KEY,
@@ -62,3 +142,16 @@ CREATE TABLE IF NOT EXISTS node_correlations (
 
 CREATE INDEX idx_correlations_analysis ON node_correlations(analysis_id);
 CREATE INDEX idx_correlations_nodes ON node_correlations(entry_fingerprint, exit_fingerprint);
+
+
+-- ============================================================
+-- SEED DATA (Development Only)
+-- ============================================================
+
+-- NOTE: With Clerk authentication, users are created via webhooks
+-- To create an admin user:
+-- 1. Sign up through Clerk frontend
+-- 2. Find the user in the database
+-- 3. Run: UPDATE users SET user_type = 'admin' WHERE email = 'your-email@example.com';
+
+-- No seed data needed - all users come from Clerk!
