@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -8,23 +8,49 @@ logger = logging.getLogger(__name__)
 class TrafficGenerator:
     """Generates synthetic Tor-like traffic patterns"""
     
-    def __init__(self, seed: int = 42):
+    # Location-based traffic profiles (latency in ms, jitter factor)
+    LOCATION_PROFILES = {
+        "United States": {"base_latency": 20, "jitter_factor": 0.15, "packet_variance": 0.10},
+        "United Kingdom": {"base_latency": 35, "jitter_factor": 0.18, "packet_variance": 0.12},
+        "Germany": {"base_latency": 40, "jitter_factor": 0.20, "packet_variance": 0.12},
+        "France": {"base_latency": 38, "jitter_factor": 0.19, "packet_variance": 0.11},
+        "Netherlands": {"base_latency": 32, "jitter_factor": 0.17, "packet_variance": 0.11},
+        "Canada": {"base_latency": 25, "jitter_factor": 0.16, "packet_variance": 0.10},
+        "Australia": {"base_latency": 180, "jitter_factor": 0.30, "packet_variance": 0.18},
+        "Japan": {"base_latency": 120, "jitter_factor": 0.25, "packet_variance": 0.15},
+        "Singapore": {"base_latency": 150, "jitter_factor": 0.28, "packet_variance": 0.16},
+        "Brazil": {"base_latency": 140, "jitter_factor": 0.28, "packet_variance": 0.17},
+        "Russia": {"base_latency": 90, "jitter_factor": 0.25, "packet_variance": 0.16},
+        "India": {"base_latency": 160, "jitter_factor": 0.30, "packet_variance": 0.18},
+        "default": {"base_latency": 50, "jitter_factor": 0.20, "packet_variance": 0.12}
+    }
+    
+    def __init__(self, seed: int = 42, location: Optional[str] = None):
         """
-        Initialize traffic generator with random seed
+        Initialize traffic generator with random seed and optional location
         
         Args:
             seed: Random seed for reproducibility
+            location: Country/location for traffic characteristics
         """
         self.seed = seed
+        self.location = location
         random.seed(seed)
         np.random.seed(seed)
-        logger.info(f"TrafficGenerator initialized with seed {seed}")
+        
+        # Get location profile
+        self.location_profile = self.LOCATION_PROFILES.get(
+            location, self.LOCATION_PROFILES["default"]
+        )
+        
+        logger.info(f"TrafficGenerator initialized with seed {seed}, location: {location}")
+        logger.info(f"Using profile: {self.location_profile}")
     
     def generate_burst(self, 
                        burst_size_range: Tuple[int, int] = (5, 20),
                        inter_packet_delay_range: Tuple[float, float] = (0.01, 0.1)) -> Tuple[List[float], List[int]]:
         """
-        Generate a single traffic burst
+        Generate a single traffic burst with location-based characteristics
         
         Args:
             burst_size_range: Min and max packets in burst
@@ -37,15 +63,27 @@ class TrafficGenerator:
         timestamps = []
         packet_sizes = []
         
+        # Apply location-based latency
+        base_latency_seconds = self.location_profile["base_latency"] / 1000.0
+        jitter_factor = self.location_profile["jitter_factor"]
+        packet_variance = self.location_profile["packet_variance"]
+        
         current_time = 0.0
         for i in range(burst_size):
             timestamps.append(current_time)
-            # Tor cells are typically 512 bytes
-            packet_size = random.randint(400, 600)
+            
+            # Tor cells are typically 512 bytes, with location-based variance
+            base_size = 512
+            size_variation = int(base_size * packet_variance * random.uniform(-1, 1))
+            packet_size = base_size + size_variation
+            packet_size = max(400, min(600, packet_size))  # Keep within bounds
             packet_sizes.append(packet_size)
             
-            # Add delay to next packet
-            delay = random.uniform(*inter_packet_delay_range)
+            # Add delay with location-based jitter
+            base_delay = random.uniform(*inter_packet_delay_range)
+            location_jitter = base_latency_seconds * jitter_factor * random.uniform(-1, 1)
+            delay = base_delay + location_jitter
+            delay = max(0.001, delay)  # Ensure positive delay
             current_time += delay
         
         return timestamps, packet_sizes
@@ -93,12 +131,15 @@ class TrafficGenerator:
             "total_packets": len(all_timestamps),
             "total_bytes": sum(all_packet_sizes),
             "duration": all_timestamps[-1] if all_timestamps else 0.0,
+            "location": self.location,
+            "location_profile": self.location_profile,
             "generation_params": {
                 "num_bursts": num_bursts,
                 "burst_size_range": burst_size_range,
                 "inter_burst_delay_range": inter_burst_delay_range,
                 "inter_packet_delay_range": inter_packet_delay_range,
-                "seed": self.seed
+                "seed": self.seed,
+                "location": self.location
             }
         }
     

@@ -145,7 +145,9 @@ class CorrelationEngine:
                          exit_features: Dict[str, Any],
                          weights: Dict[str, float] = None,
                          entry_timestamp: Optional[datetime] = None,
-                         exit_timestamp: Optional[datetime] = None) -> Tuple[float, Dict[str, float]]:
+                         exit_timestamp: Optional[datetime] = None,
+                         relay_country: Optional[str] = None,
+                         expected_location: Optional[str] = None) -> Tuple[float, Dict[str, float]]:
         """
         Calculate comprehensive correlation score between entry and exit patterns
         
@@ -157,16 +159,19 @@ class CorrelationEngine:
             weights: Weights for different similarity metrics
             entry_timestamp: Optional entry observation timestamp
             exit_timestamp: Optional exit observation timestamp
+            relay_country: Country of the relay being evaluated
+            expected_location: Expected location from traffic generation
         
         Returns:
             Tuple of (overall_score, detailed_scores)
         """
         if weights is None:
             weights = {
-                "dtw": 0.35,        # DTW time-series similarity
-                "vector": 0.25,     # Feature vector similarity
+                "dtw": 0.30,        # DTW time-series similarity
+                "vector": 0.20,     # Feature vector similarity
                 "euclidean": 0.15,  # Euclidean distance
-                "temporal": 0.25    # Temporal correlation
+                "temporal": 0.20,   # Temporal correlation
+                "location": 0.15    # Location matching bonus
             }
         
         # Extract time series for DTW
@@ -183,11 +188,19 @@ class CorrelationEngine:
         euclidean_score = self.euclidean_similarity(entry_vector, exit_vector)
         temporal_score = self.temporal_correlation(entry_timestamp, exit_timestamp)
         
+        # Calculate location matching score
+        location_score = self._location_matching_score(
+            entry_pattern.get("location"),
+            relay_country,
+            expected_location
+        )
+        
         detailed_scores = {
             "dtw_similarity": dtw_score,
             "vector_similarity": vector_score,
             "euclidean_similarity": euclidean_score,
-            "temporal_similarity": temporal_score
+            "temporal_similarity": temporal_score,
+            "location_match": location_score
         }
         
         # Calculate weighted overall score
@@ -195,13 +208,51 @@ class CorrelationEngine:
             weights["dtw"] * dtw_score +
             weights["vector"] * vector_score +
             weights["euclidean"] * euclidean_score +
-            weights["temporal"] * temporal_score
+            weights["temporal"] * temporal_score +
+            weights["location"] * location_score
         )
         
         logger.debug(f"Correlation scores - DTW: {dtw_score:.3f}, Vector: {vector_score:.3f}, "
-                    f"Euclidean: {euclidean_score:.3f}, Temporal: {temporal_score:.3f}, Overall: {overall_score:.3f}")
+                    f"Euclidean: {euclidean_score:.3f}, Temporal: {temporal_score:.3f}, "
+                    f"Location: {location_score:.3f}, Overall: {overall_score:.3f}")
         
         return overall_score, detailed_scores
+    
+    def _location_matching_score(self,
+                                 pattern_location: Optional[str],
+                                 relay_country: Optional[str],
+                                 expected_location: Optional[str]) -> float:
+        """
+        Calculate location matching score
+        
+        Args:
+            pattern_location: Location from generated traffic pattern
+            relay_country: Country of the relay being evaluated
+            expected_location: Expected location from analysis request
+        
+        Returns:
+            Location match score (0-1, where 1 is perfect match)
+        """
+        # If no location info, return neutral score
+        if not expected_location or not relay_country:
+            return 0.5
+        
+        # Normalize for case-insensitive comparison
+        expected_normalized = expected_location.strip().lower()
+        relay_normalized = relay_country.strip().lower()
+        
+        # Check if relay country matches expected location
+        if relay_normalized == expected_normalized:
+            return 1.0
+        
+        # Check if pattern location matches relay (should be the same as expected if generated correctly)
+        if pattern_location:
+            pattern_normalized = pattern_location.strip().lower()
+            if pattern_normalized == relay_normalized:
+                return 1.0
+        
+        # No match - return low score
+        return 0.1
     
     def batch_correlate(self,
                        entry_pattern: Dict[str, Any],

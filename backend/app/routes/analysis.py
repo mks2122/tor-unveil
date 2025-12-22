@@ -44,11 +44,12 @@ async def run_analysis(request: AnalysisRequest, db: Session = Depends(get_db)):
         analysis_service = AnalysisService(db)
         
         if request.mode == "simulated":
-            # Use existing simulation logic
+            # Use existing simulation logic with location
             result = analysis_service.run_analysis(
                 simulation_count=request.simulation_count,
                 top_n=request.top_n,
-                random_seed=request.random_seed
+                random_seed=request.random_seed,
+                guard_location=request.guard_location
             )
         else:
             raise HTTPException(

@@ -33,7 +33,8 @@ class AnalysisService:
     def run_analysis(self,
                     simulation_count: int = 100,
                     top_n: int = 10,
-                    random_seed: int = 42) -> Dict[str, Any]:
+                    random_seed: int = 42,
+                    guard_location: str = None) -> Dict[str, Any]:
         """
         Run complete analysis to identify probable guard nodes
         
@@ -41,6 +42,7 @@ class AnalysisService:
             simulation_count: Number of traffic simulations to run
             top_n: Number of top guard nodes to return
             random_seed: Random seed for reproducibility
+            guard_location: Country/location of the simulated guard node
         
         Returns:
             Dictionary with analysis results
@@ -48,7 +50,7 @@ class AnalysisService:
         start_time = time.time()
         analysis_id = str(uuid.uuid4())
         
-        logger.info(f"Starting analysis {analysis_id} with {simulation_count} simulations")
+        logger.info(f"Starting analysis {analysis_id} with {simulation_count} simulations, location: {guard_location}")
         
         try:
             # Step 1: Get guard relays
@@ -60,11 +62,28 @@ class AnalysisService:
 
             if not guard_relays:
                 raise ValueError("No guard relays available for analysis")
+            
+            # Filter by location if specified
+            if guard_location:
+                # Normalize location for comparison (case-insensitive)
+                location_normalized = guard_location.strip().lower()
+                location_relays = [
+                    r for r in guard_relays 
+                    if (r.country_name and r.country_name.lower() == location_normalized) or
+                       (r.country and r.country.lower() == location_normalized)
+                ]
+                if location_relays:
+                    logger.info(f"Filtered to {len(location_relays)} relays in {guard_location}")
+                else:
+                    logger.warning(f"No relays found in {guard_location}, using all guard relays")
+                    location_relays = guard_relays
+            else:
+                location_relays = guard_relays
 
-            logger.info(f"Analyzing {len(guard_relays)} guard relays")
+            logger.info(f"Analyzing {len(guard_relays)} guard relays ({len(location_relays)} match location)")
 
-            # Step 2: Generate synthetic traffic patterns
-            traffic_gen = TrafficGenerator(seed=random_seed)
+            # Step 2: Generate synthetic traffic patterns with location-based characteristics
+            traffic_gen = TrafficGenerator(seed=random_seed, location=guard_location)
 
             similarity_scores = {}
             analysis_db_id = None
@@ -75,7 +94,10 @@ class AnalysisService:
             # Will add timeline events after we have analysis_id
             timeline_events_queue = []
 
-            for i in range(min(simulation_count, len(guard_relays))):
+            # Use location_relays for simulation (prioritize matching location)
+            relays_to_simulate = location_relays if location_relays else guard_relays
+
+            for i in range(min(simulation_count, len(relays_to_simulate))):
                 # Generate correlated patterns
                 entry_pattern, exit_pattern = traffic_gen.generate_correlated_patterns(
                     num_bursts=10,
@@ -86,19 +108,21 @@ class AnalysisService:
                 entry_features = self.feature_extractor.extract_features(entry_pattern)
                 exit_features = self.feature_extractor.extract_features(exit_pattern)
 
-                # Correlate with a guard relay
-                guard_relay = guard_relays[i % len(guard_relays)]
+                # Correlate with a guard relay from the location-filtered list
+                guard_relay = relays_to_simulate[i % len(relays_to_simulate)]
 
                 # Timestamps for temporal correlation
                 entry_timestamp = datetime.utcnow()
                 exit_timestamp = entry_timestamp
 
-                # Calculate correlation score
+                # Calculate correlation score with location matching
                 score, detailed = self.correlation_engine.correlation_score(
                     entry_pattern, exit_pattern,
                     entry_features, exit_features,
                     entry_timestamp=entry_timestamp,
-                    exit_timestamp=exit_timestamp
+                    exit_timestamp=exit_timestamp,
+                    relay_country=guard_relay.country_name or guard_relay.country,
+                    expected_location=guard_location
                 )
 
                 last_detailed = detailed
