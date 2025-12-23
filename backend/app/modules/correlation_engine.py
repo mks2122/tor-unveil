@@ -15,13 +15,15 @@ class CorrelationEngine:
     
     def dtw_similarity(self, 
                       entry_series: np.ndarray, 
-                      exit_series: np.ndarray) -> float:
+                      exit_series: np.ndarray,
+                      all_distances: list = None) -> float:
         """
         Calculate DTW-based similarity between two time series
         
         Args:
             entry_series: Entry traffic time series
             exit_series: Exit traffic time series
+            all_distances: List of all DTW distances for adaptive normalization
         
         Returns:
             Normalized similarity score (0-1, where 1 is most similar)
@@ -36,9 +38,18 @@ class CorrelationEngine:
         # Calculate DTW distance
         distance, _ = fastdtw(entry_2d, exit_2d, dist=euclidean)
         
+        # Adaptive normalization based on data distribution
+        # Use median of all distances if available, otherwise use reasonable default
+        if all_distances and len(all_distances) > 0:
+            median_distance = np.median(all_distances)
+            normalization_factor = max(median_distance, 50)  # Minimum 50 to avoid over-sensitivity
+        else:
+            # Fallback: use max of (distance/2, 50) for single comparison
+            normalization_factor = max(distance / 2, 50)
+        
         # Normalize to 0-1 similarity score (inverse exponential)
         # Lower distance = higher similarity
-        similarity = np.exp(-distance / 100)
+        similarity = np.exp(-distance / normalization_factor)
         
         return float(similarity)
     
@@ -90,34 +101,70 @@ class CorrelationEngine:
         return float(similarity)
     
     def temporal_correlation(self,
-                           entry_timestamp: Optional[datetime],
-                           exit_timestamp: Optional[datetime],
+                           entry_pattern: Dict[str, Any],
+                           exit_pattern: Dict[str, Any],
                            max_window_seconds: int = 300) -> float:
         """
-        Calculate temporal correlation based on timestamp proximity
+        Calculate temporal correlation based on packet timing alignment
         
         Args:
-            entry_timestamp: Entry node observation timestamp
-            exit_timestamp: Exit node observation timestamp
+            entry_pattern: Entry traffic pattern with timestamps
+            exit_pattern: Exit traffic pattern with timestamps
             max_window_seconds: Maximum time window for correlation (default 5 minutes)
         
         Returns:
-            Temporal similarity score (0-1, where 1 is simultaneous)
+            Temporal similarity score (0-1, where 1 is well-aligned)
         """
-        if entry_timestamp is None or exit_timestamp is None:
-            return 0.5  # Neutral score if timestamps unavailable
+        entry_timestamps = entry_pattern.get("timestamps", [])
+        exit_timestamps = exit_pattern.get("timestamps", [])
         
-        time_delta = abs((exit_timestamp - entry_timestamp).total_seconds())
+        if len(entry_timestamps) < 2 or len(exit_timestamps) < 2:
+            return 0.5  # Neutral score if insufficient data
         
-        if time_delta < 10:
-            # Very close in time
-            return 1.0
-        elif time_delta < max_window_seconds:
-            # Within window - exponential decay
-            return np.exp(-time_delta / max_window_seconds)
-        else:
-            # Outside window
-            return 0.1
+        # Calculate average packet timing offset
+        # Use first few packets to estimate timing shift
+        num_samples = min(10, len(entry_timestamps), len(exit_timestamps))
+        
+        # Normalize both to start at 0
+        entry_relative = [t - entry_timestamps[0] for t in entry_timestamps[:num_samples]]
+        exit_relative = [t - exit_timestamps[0] for t in exit_timestamps[:num_samples]]
+        
+        # Calculate timing alignment using cross-correlation of inter-packet delays
+        entry_delays = np.diff(entry_relative)
+        exit_delays = np.diff(exit_relative)
+        
+        if len(entry_delays) == 0 or len(exit_delays) == 0:
+            return 0.5
+        
+        # Need at least 3 points for meaningful correlation
+        min_len = min(len(entry_delays), len(exit_delays))
+        if min_len < 3:
+            return 0.5
+        
+        # Check if delays have variance (avoid divide by zero)
+        entry_std = np.std(entry_delays[:min_len])
+        exit_std = np.std(exit_delays[:min_len])
+        
+        if entry_std < 1e-10 or exit_std < 1e-10:
+            # No variance - delays are constant, check if they're similar
+            entry_mean = np.mean(entry_delays[:min_len])
+            exit_mean = np.mean(exit_delays[:min_len])
+            diff_ratio = abs(entry_mean - exit_mean) / max(entry_mean, exit_mean, 0.01)
+            return 1.0 - min(diff_ratio, 1.0)
+        
+        # Safe correlation calculation
+        try:
+            correlation = np.corrcoef(entry_delays[:min_len], exit_delays[:min_len])[0, 1]
+            
+            # Handle NaN (can occur if std dev is 0)
+            if np.isnan(correlation) or np.isinf(correlation):
+                return 0.5
+            
+            # Convert correlation to 0-1 similarity score
+            similarity = (correlation + 1) / 2  # Map [-1, 1] to [0, 1]
+            return float(np.clip(similarity, 0.0, 1.0))
+        except:
+            return 0.5
     
     def calculate_time_delta(self,
                            entry_timestamp: Optional[datetime],
@@ -147,7 +194,8 @@ class CorrelationEngine:
                          entry_timestamp: Optional[datetime] = None,
                          exit_timestamp: Optional[datetime] = None,
                          relay_country: Optional[str] = None,
-                         expected_location: Optional[str] = None) -> Tuple[float, Dict[str, float]]:
+                         expected_location: Optional[str] = None,
+                         all_dtw_distances: list = None) -> Tuple[float, Dict[str, float]]:
         """
         Calculate comprehensive correlation score between entry and exit patterns
         
@@ -157,21 +205,22 @@ class CorrelationEngine:
             entry_features: Extracted entry features
             exit_features: Extracted exit features
             weights: Weights for different similarity metrics
-            entry_timestamp: Optional entry observation timestamp
-            exit_timestamp: Optional exit observation timestamp
+            entry_timestamp: Optional entry observation timestamp (deprecated)
+            exit_timestamp: Optional exit observation timestamp (deprecated)
             relay_country: Country of the relay being evaluated
             expected_location: Expected location from traffic generation
+            all_dtw_distances: List of all DTW distances for adaptive normalization
         
         Returns:
             Tuple of (overall_score, detailed_scores)
         """
         if weights is None:
             weights = {
-                "dtw": 0.30,        # DTW time-series similarity
+                "dtw": 0.25,        # DTW time-series similarity (reduced from 0.30)
                 "vector": 0.20,     # Feature vector similarity
                 "euclidean": 0.15,  # Euclidean distance
-                "temporal": 0.20,   # Temporal correlation
-                "location": 0.15    # Location matching bonus
+                "temporal": 0.15,   # Temporal correlation (reduced from 0.20)
+                "location": 0.25    # Location matching bonus (increased from 0.15)
             }
         
         # Extract time series for DTW
@@ -183,10 +232,10 @@ class CorrelationEngine:
         exit_vector = np.array(exit_features.get("feature_vector", []))
         
         # Calculate individual similarities
-        dtw_score = self.dtw_similarity(entry_series, exit_series)
+        dtw_score = self.dtw_similarity(entry_series, exit_series, all_dtw_distances)
         vector_score = self.vector_similarity(entry_vector, exit_vector)
         euclidean_score = self.euclidean_similarity(entry_vector, exit_vector)
-        temporal_score = self.temporal_correlation(entry_timestamp, exit_timestamp)
+        temporal_score = self.temporal_correlation(entry_pattern, exit_pattern)
         
         # Calculate location matching score
         location_score = self._location_matching_score(

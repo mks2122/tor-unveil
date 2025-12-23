@@ -36,8 +36,14 @@ class FeatureExtractor:
             for i in range(len(timestamps) - 1)
         ]
         
-        # Identify bursts (gaps > 0.3 seconds indicate burst boundaries)
-        burst_threshold = 0.3
+        # Adaptive burst threshold based on traffic characteristics
+        # Use median delay * 3 as threshold, with bounds [0.2s, 1.0s]
+        if inter_packet_delays:
+            median_delay = np.median(inter_packet_delays)
+            burst_threshold = np.clip(median_delay * 3, 0.2, 1.0)
+        else:
+            burst_threshold = 0.5  # Unified default threshold
+        
         burst_boundaries = [0]
         for i, delay in enumerate(inter_packet_delays):
             if delay > burst_threshold:
@@ -65,6 +71,8 @@ class FeatureExtractor:
             "mean_inter_packet_delay": float(np.mean(inter_packet_delays)) if inter_packet_delays else 0.0,
             "std_inter_packet_delay": float(np.std(inter_packet_delays)) if inter_packet_delays else 0.0,
             "median_inter_packet_delay": float(np.median(inter_packet_delays)) if inter_packet_delays else 0.0,
+            "jitter_variance": float(np.var(inter_packet_delays)) if inter_packet_delays else 0.0,
+            "delay_skewness": float(np.percentile(inter_packet_delays, 75) - np.percentile(inter_packet_delays, 25)) if len(inter_packet_delays) > 4 else 0.0,
             
             # Burst features
             "num_bursts": len(burst_durations),
@@ -75,22 +83,31 @@ class FeatureExtractor:
             "total_packets": len(timestamps),
             "total_bytes": sum(packet_sizes),
             "mean_packet_size": float(np.mean(packet_sizes)) if packet_sizes else 0.0,
+            "std_packet_size": float(np.std(packet_sizes)) if packet_sizes else 0.0,
             "mean_burst_volume": float(np.mean(packet_volumes)) if packet_volumes else 0.0,
+            
+            # Pattern features
+            "burst_density": len(burst_durations) / len(timestamps) if len(timestamps) > 0 else 0.0,
             
             # Overall timing
             "total_duration": timestamps[-1] - timestamps[0] if len(timestamps) > 1 else 0.0,
             "packet_rate": len(timestamps) / (timestamps[-1] - timestamps[0]) if len(timestamps) > 1 and timestamps[-1] != timestamps[0] else 0.0,
         }
         
-        # Create normalized feature vector for similarity comparison
+        # Create normalized feature vector for similarity comparison (expanded from 7 to 12 features)
         feature_vector = [
             features["mean_inter_packet_delay"],
             features["std_inter_packet_delay"],
+            features["median_inter_packet_delay"],
+            features["jitter_variance"],
+            features["delay_skewness"],
             features["mean_burst_duration"],
             features["std_burst_duration"],
             features["mean_packet_size"],
+            features["std_packet_size"],
             features["packet_rate"],
             float(features["num_bursts"]),
+            features["burst_density"],
         ]
         
         # Store raw arrays for DTW if needed

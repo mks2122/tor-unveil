@@ -8,36 +8,41 @@ class ProbabilityScorer:
     """Estimates likelihood of guard nodes being entry points"""
     
     def __init__(self, 
-                 similarity_weight: float = 0.6,
-                 bandwidth_weight: float = 0.2,
-                 uptime_weight: float = 0.1,
-                 consensus_weight: float = 0.1):
+                 similarity_weight: float = 0.55,  # Primary factor
+                 bandwidth_weight: float = 0.15,   # Relay capacity
+                 uptime_weight: float = 0.05,      # Reliability
+                 consensus_weight: float = 0.15,   # Network view
+                 geographic_weight: float = 0.10): # Minimal location hint
         """
-        Initialize probability scorer with weights
+        Initialize probability scorer with rebalanced weights
         
         Args:
             similarity_weight: Weight for correlation similarity score
             bandwidth_weight: Weight for relay bandwidth
             uptime_weight: Weight for relay uptime
             consensus_weight: Weight for consensus weight
+            geographic_weight: Weight for geographic location probability
         """
         self.similarity_weight = similarity_weight
         self.bandwidth_weight = bandwidth_weight
         self.uptime_weight = uptime_weight
         self.consensus_weight = consensus_weight
+        self.geographic_weight = geographic_weight
         
         # Normalize weights to sum to 1
-        total = similarity_weight + bandwidth_weight + uptime_weight + consensus_weight
+        total = similarity_weight + bandwidth_weight + uptime_weight + consensus_weight + geographic_weight
         self.similarity_weight /= total
         self.bandwidth_weight /= total
         self.uptime_weight /= total
         self.consensus_weight /= total
+        self.geographic_weight /= total
         
-        logger.info(f"ProbabilityScorer initialized with weights: "
+        logger.info(f"ProbabilityScorer initialized with rebalanced weights: "
                    f"similarity={self.similarity_weight:.2f}, "
                    f"bandwidth={self.bandwidth_weight:.2f}, "
                    f"uptime={self.uptime_weight:.2f}, "
-                   f"consensus={self.consensus_weight:.2f}")
+                   f"consensus={self.consensus_weight:.2f}, "
+                   f"geographic={self.geographic_weight:.2f}")
     
     def normalize_value(self, value: float, min_val: float, max_val: float) -> float:
         """Normalize value to 0-1 range"""
@@ -48,7 +53,8 @@ class ProbabilityScorer:
     def calculate_relay_score(self,
                              similarity_score: float,
                              relay_metadata: Dict[str, Any],
-                             all_relays_metadata: List[Dict[str, Any]]) -> Tuple[float, Dict[str, float]]:
+                             all_relays_metadata: List[Dict[str, Any]],
+                             geographic_score: float = 0.5) -> Tuple[float, Dict[str, float]]:
         """
         Calculate probability score for a single relay
         
@@ -56,6 +62,7 @@ class ProbabilityScorer:
             similarity_score: Correlation similarity score
             relay_metadata: Metadata for the relay being scored
             all_relays_metadata: Metadata for all relays (for normalization)
+            geographic_score: Geographic location probability score (0-1)
         
         Returns:
             Tuple of (probability_score, component_scores)
@@ -89,12 +96,13 @@ class ProbabilityScorer:
             max(consensus_weights) if consensus_weights else 1
         )
         
-        # Calculate weighted probability score
+        # Calculate weighted probability score with geographic factor
         probability_score = (
             self.similarity_weight * similarity_score +
             self.bandwidth_weight * norm_bandwidth +
             self.uptime_weight * norm_uptime +
-            self.consensus_weight * norm_consensus
+            self.consensus_weight * norm_consensus +
+            self.geographic_weight * geographic_score
         )
         
         component_scores = {
@@ -102,10 +110,14 @@ class ProbabilityScorer:
             "normalized_bandwidth": norm_bandwidth,
             "normalized_uptime": norm_uptime,
             "normalized_consensus": norm_consensus,
+            "geographic_score": geographic_score,
             "weighted_similarity": self.similarity_weight * similarity_score,
             "weighted_bandwidth": self.bandwidth_weight * norm_bandwidth,
             "weighted_uptime": self.uptime_weight * norm_uptime,
-            "weighted_consensus": self.consensus_weight * norm_consensus
+            "weighted_consensus": self.consensus_weight * norm_consensus,
+            "weighted_geographic": self.geographic_weight * geographic_score,
+            "raw_bandwidth": relay_metadata.get("bandwidth", 0),
+            "raw_consensus": relay_metadata.get("consensus_weight", 0)
         }
         
         return probability_score, component_scores

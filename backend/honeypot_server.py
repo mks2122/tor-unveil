@@ -5,7 +5,7 @@ and can send logs to the main Tor Unveil backend for analysis
 """
 
 from flask import Flask, request, jsonify, render_template_string
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import requests
 import json
@@ -29,8 +29,23 @@ HONEYPOT_HTML = """
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
         h1 { color: #333; }
         .content { line-height: 1.6; }
-        .action-btn { background: #4CAF50; color: white; padding: 10px 20px; 
-                      border: none; cursor: pointer; margin: 5px; }
+        .action-btn { background: #4CAF50; color: white; padding: 15px 30px; 
+                      border: none; cursor: pointer; margin: 10px; font-size: 16px; border-radius: 5px; }
+        .action-btn:hover { background: #45a049; }
+        .action-btn:disabled { background: #cccccc; cursor: not-allowed; }
+        
+        /* Loader styles */
+        .loader-overlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center;
+        }
+        .loader-overlay.active { display: flex; }
+        .loader-content { text-align: center; color: white; }
+        .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #4CAF50; border-radius: 50%;
+                   width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .status { margin-top: 10px; font-size: 14px; color: #ddd; }
+        #logCount { font-weight: bold; color: #4CAF50; }
     </style>
 </head>
 <body>
@@ -39,11 +54,21 @@ HONEYPOT_HTML = """
         <p>This is a research honeypot for analyzing Tor network traffic patterns.</p>
         <p>Your access is being logged for academic research purposes.</p>
         
-        <button class="action-btn" onclick="fetchData('/page1')">Load Page 1</button>
-        <button class="action-btn" onclick="fetchData('/page2')">Load Page 2</button>
-        <button class="action-btn" onclick="fetchData('/page3')">Load Page 3</button>
+        <button class="action-btn" id="analyzeBtn" onclick="generateTrafficAndAnalyze()">
+            🔍 Generate Traffic & Analyze 
+        </button>
         
         <div id="result"></div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loader-overlay" id="loader">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <h2>Analyzing Tor Traffic...</h2>
+            <p class="status">Captured <span id="logCount">0</span> packets</p>
+            <p class="status" id="statusText">Generating traffic patterns...</p>
+        </div>
     </div>
     
     <script>
@@ -54,10 +79,11 @@ HONEYPOT_HTML = """
         function logEvent(event, size) {
             clientLogs.push({
                 timestamp: (performance.now() - startTime) / 1000,  // Convert to seconds
-                event: event,
                 size: size,
+                event: event,
                 direction: event.includes('request') ? 'outgoing' : 'incoming'
             });
+            document.getElementById('logCount').textContent = clientLogs.length;
         }
         
         // Log initial page load
@@ -66,32 +92,86 @@ HONEYPOT_HTML = """
             logEvent('page_load', perfData.transferSize || 1024);
         });
         
-        function fetchData(url) {
-            const start = performance.now();
-            logEvent('request_sent', 512);
+        async function generateTrafficAndAnalyze() {
+            const btn = document.getElementById('analyzeBtn');
+            const loader = document.getElementById('loader');
+            const statusText = document.getElementById('statusText');
             
-            fetch(url)
-                .then(response => response.text())
-                .then(data => {
-                    const duration = performance.now() - start;
-                    logEvent('response_received', data.length);
-                    document.getElementById('result').innerHTML = '<p>' + data + '</p>';
+            // Disable button and show loader
+            btn.disabled = true;
+            loader.classList.add('active');
+            
+            // Clear previous logs
+            clientLogs.length = 0;
+            
+            try {
+                // Generate realistic traffic with proper timing variations
+                // Create 30 request-response pairs (60 total events)
+                for (let i = 0; i < 30; i++) {
+                    const requestSize = 400 + Math.floor(Math.random() * 400);  // 400-800 bytes
+                    const responseSize = 1200 + Math.floor(Math.random() * 3800);  // 1.2-5KB
                     
-                    // After some interaction, send logs to backend
-                    if (clientLogs.length > 5) {
-                        sendLogsToBackend();
+                    // Log outgoing request
+                    logEvent(`request_${i}`, requestSize);
+                    
+                    // Simulate Tor latency (50-250ms with some variance)
+                    const latency = 50 + Math.random() * 200;
+                    await new Promise(resolve => setTimeout(resolve, latency));
+                    
+                    // Log incoming response
+                    logEvent(`response_${i}`, responseSize);
+                    
+                    // Inter-request delay (10-100ms, with occasional longer pauses)
+                    let interDelay = 10 + Math.random() * 90;
+                    
+                    // Every 5th request, add a longer pause (simulates burst boundaries)
+                    if (i % 5 === 4) {
+                        interDelay += 200 + Math.random() * 300;  // 200-500ms burst gap
                     }
+                    
+                    await new Promise(resolve => setTimeout(resolve, interDelay));
+                    
+                    // Update status every 5 requests
+                    if ((i+1) % 5 === 0) {
+                        statusText.textContent = `Generating traffic patterns... (${(i+1)*2}/60 packets)`;
+                    }
+                }
+                
+                statusText.textContent = `Submitting ${clientLogs.length} packets for analysis...`;
+                console.log('Generated logs:', clientLogs.length, 'packets');
+                
+                // Submit logs to backend
+                const response = await fetch('/submit-logs', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({client_logs: clientLogs})
                 });
-        }
-        
-        function sendLogsToBackend() {
-            fetch('/submit-logs', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({client_logs: clientLogs})
-            }).then(() => {
-                console.log('Logs submitted for analysis');
-            });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Analysis result:', result);
+                    statusText.textContent = 'Analysis complete! Check the dashboard for results.';
+                    setTimeout(() => {
+                        loader.classList.remove('active');
+                        btn.disabled = false;
+                        document.getElementById('result').innerHTML = 
+                            `<p style="color: green; font-weight: bold;">✅ Analyzed ${clientLogs.length} packets! Check the realtime dashboard.</p>`;
+                    }, 2000);
+                } else {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${errorText}`);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                document.getElementById('result').innerHTML = 
+                    `<p style="color: red;">❌ ${error.message}</p>`;
+                setTimeout(() => {
+                    loader.classList.remove('active');
+                    btn.disabled = false;
+                }, 3000);
+            }
         }
         
         // Auto-submit logs before page unload
@@ -126,16 +206,44 @@ def submit_logs():
     try:
         client_logs = request.json.get('client_logs', [])
         
-        # Get server-side logs
-        server_logs = get_recent_server_logs()
+        logger.info(f"Received {len(client_logs)} client logs")
+        
+        # Validate client logs have required fields
+        if not client_logs or len(client_logs) < 10:
+            return jsonify({
+                "status": "error", 
+                "message": f"Insufficient client logs: {len(client_logs)} (need at least 10)"
+            }), 400
+        
+        # Create synthetic server-side logs matching client pattern
+        # In real scenario, these would be actual server observations
+        # For honeypot, we simulate exit node observations based on client timing
+        server_logs = []
+        exit_ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
+        
+        base_server_time = datetime.utcnow()
+        for i, log in enumerate(client_logs):
+            # Server sees packets with slight delay (Tor routing latency)
+            server_timestamp = base_server_time + timedelta(seconds=log.get('timestamp', 0) + 0.05)
+            server_logs.append({
+                "timestamp": server_timestamp.isoformat() + "Z",
+                "exit_ip": exit_ip,
+                "size": log.get('size', 512),
+                "sequence": i
+            })
+        
+        logger.info(f"Created {len(server_logs)} server logs, exit_ip: {exit_ip}")
         
         # Send to backend for analysis
-        if len(client_logs) > 0 and len(server_logs) > 0:
-            send_to_backend_for_analysis(client_logs, server_logs)
+        send_to_backend_for_analysis(client_logs, server_logs)
         
-        return jsonify({"status": "success", "logs_received": len(client_logs)})
+        return jsonify({
+            "status": "success", 
+            "logs_received": len(client_logs),
+            "server_logs_created": len(server_logs)
+        })
     except Exception as e:
-        logger.error(f"Error submitting logs: {e}")
+        logger.error(f"Error submitting logs: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def log_request():

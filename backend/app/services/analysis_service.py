@@ -15,6 +15,7 @@ from datetime import datetime
 import logging
 import time
 import uuid
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -111,23 +112,16 @@ class AnalysisService:
                 # Correlate with a guard relay from the location-filtered list
                 guard_relay = relays_to_simulate[i % len(relays_to_simulate)]
 
-                # Timestamps for temporal correlation
-                entry_timestamp = datetime.utcnow()
-                exit_timestamp = entry_timestamp
-
                 # Calculate correlation score with location matching
+                # Note: For simulated mode, we don't need adaptive normalization (patterns are synthetic)
                 score, detailed = self.correlation_engine.correlation_score(
                     entry_pattern, exit_pattern,
                     entry_features, exit_features,
-                    entry_timestamp=entry_timestamp,
-                    exit_timestamp=exit_timestamp,
                     relay_country=guard_relay.country_name or guard_relay.country,
                     expected_location=guard_location
                 )
 
                 last_detailed = detailed
-                last_entry_timestamp = entry_timestamp
-                last_exit_timestamp = exit_timestamp
 
                 # Store similarity score for this guard
                 fingerprint = guard_relay.fingerprint
@@ -161,13 +155,8 @@ class AnalysisService:
                 {'unique_guards_analyzed': len(avg_similarity_scores)}
             )
 
-            # Step 3: Score and rank guards
-            scorer = ProbabilityScorer(
-                similarity_weight=0.6,
-                bandwidth_weight=0.2,
-                uptime_weight=0.1,
-                consensus_weight=0.1
-            )
+            # Step 3: Score and rank guards with rebalanced weights
+            scorer = ProbabilityScorer()  # Uses new rebalanced default weights
 
             guard_relay_dicts = [
                 {
@@ -394,6 +383,14 @@ class AnalysisService:
         logger.info(f"Starting real-time analysis {analysis_id}")
         
         try:
+            # Validate minimum packet threshold
+            min_packets = 50  # Minimum required for statistical significance
+            if len(client_logs) < min_packets:
+                raise ValueError(
+                    f"Insufficient traffic data: {len(client_logs)} packets (minimum {min_packets} required). "
+                    "Please capture more traffic before analysis."
+                )
+            
             # Parse real traffic logs into patterns
             entry_pattern, exit_pattern, parsed_metadata = self.traffic_parser.parse_realtime_request({
                 "client_logs": client_logs,
@@ -405,13 +402,20 @@ class AnalysisService:
             exit_ip = parsed_metadata.get("exit_ip")
             exit_node = None
             exit_fingerprint = None
+            exit_country = None
             
             if exit_ip:
                 logger.info(f"Looking up exit node for IP: {exit_ip}")
                 exit_node = self.onionoo_client.get_relay_by_ip(exit_ip)
                 if exit_node:
                     exit_fingerprint = exit_node.get("fingerprint")
-                    logger.info(f"Found exit node: {exit_fingerprint}")
+                    exit_country = exit_node.get("country", "Unknown")
+                    exit_nickname = exit_node.get("nickname", "Unknown")
+                    logger.info(f"Exit node found: {exit_nickname} ({exit_fingerprint[:16]}...) in {exit_country}")
+                else:
+                    logger.warning(f"No exit node found for IP: {exit_ip} - geographic scoring will be neutral")
+            else:
+                logger.warning("No exit IP provided in request - geographic scoring will be neutral")
             
             # Extract features
             entry_features = self.feature_extractor.extract_features(entry_pattern)
@@ -424,6 +428,20 @@ class AnalysisService:
             
             logger.info(f"Correlating against {len(guard_relays)} guard relays")
             
+            # Log bandwidth distribution by country
+            country_bw = {}
+            for guard in guard_relays:
+                country = guard.country or "Unknown"
+                bw = guard.bandwidth or 0
+                if country not in country_bw:
+                    country_bw[country] = []
+                country_bw[country].append(bw)
+            
+            # Show top 5 countries by average bandwidth
+            avg_bw = {c: sum(bws)/len(bws)/1e6 for c, bws in country_bw.items() if len(bws) > 5}
+            top_bw_countries = sorted(avg_bw.items(), key=lambda x: x[1], reverse=True)[:5]
+            logger.info(f"Top 5 countries by avg bandwidth: {[(c, f'{bw:.1f}MB') for c, bw in top_bw_countries]}")
+            
             # Build relay metadata list for normalization
             all_relays_metadata = []
             for guard in guard_relays:
@@ -433,22 +451,62 @@ class AnalysisService:
                     "bandwidth": guard.bandwidth or 0,
                     "uptime": guard.uptime or 0,
                     "consensus_weight": guard.consensus_weight or 0,
-                    "country": guard.country
+                    "country": guard.country,
+                    "country_name": guard.country_name
                 })
             
-            # Create scorer instance
+            # Phase 1: Collect all DTW distances for adaptive normalization
+            from fastdtw import fastdtw
+            from scipy.spatial.distance import euclidean
+            
+            entry_series = np.array(entry_features.get("inter_packet_delays", []))
+            all_dtw_distances = []
+            
+            if len(entry_series) > 0:
+                for guard in guard_relays:
+                    # Quick DTW distance calculation
+                    exit_series = np.array(exit_features.get("inter_packet_delays", []))
+                    if len(exit_series) > 0:
+                        entry_2d = entry_series.reshape(-1, 1)
+                        exit_2d = exit_series.reshape(-1, 1)
+                        distance, _ = fastdtw(entry_2d, exit_2d, dist=euclidean)
+                        all_dtw_distances.append(distance)
+            
+            logger.info(f"Collected {len(all_dtw_distances)} DTW distances for adaptive normalization")
+            
+            # Create scorer instance with rebalanced weights
             scorer = ProbabilityScorer()
             
-            # Correlate patterns with each guard
+            # Phase 2: Correlate patterns with each guard using adaptive normalization
             guard_scores = []
             for guard in guard_relays:
-                # Use correlation engine
+                # Use correlation engine with adaptive DTW normalization
                 score, detailed = self.correlation_engine.correlation_score(
                     entry_pattern, exit_pattern,
                     entry_features, exit_features,
-                    entry_timestamp=datetime.utcnow(),
-                    exit_timestamp=datetime.utcnow()
+                    relay_country=guard.country or guard.country_name,
+                    all_dtw_distances=all_dtw_distances  # Pass for adaptive normalization
                 )
+                
+                # Calculate geographic score based on exit node location
+                # Default to neutral - only adjust if we have strong evidence
+                geographic_score = 0.5  # Neutral for all guards by default
+                
+                # Only apply geographic hints if exit node is known AND in specific country
+                # Keep the adjustment very subtle to avoid country bias
+                if exit_node:
+                    exit_country = exit_node.get("country", "")
+                    guard_country = guard.country or ""
+                    
+                    if exit_country and guard_country:
+                        if exit_country.lower() == guard_country.lower():
+                            geographic_score = 0.55  # Very subtle boost (was 0.6)
+                        # Don't penalize other countries - keep neutral
+                    
+                    # Log for first few guards to debug
+                    if len(guard_scores) < 3:
+                        logger.debug(f"Guard {guard.nickname} ({guard_country}): "
+                                   f"exit_country={exit_country}, geo_score={geographic_score:.2f}")
                 
                 # Build relay metadata for this guard
                 relay_metadata = {
@@ -460,11 +518,12 @@ class AnalysisService:
                     "country": guard.country
                 }
                 
-                # Score guard node using instance method
+                # Score guard node with geographic factor
                 prob_score, components = scorer.calculate_relay_score(
                     score,
                     relay_metadata,
-                    all_relays_metadata
+                    all_relays_metadata,
+                    geographic_score=geographic_score
                 )
                 
                 guard_scores.append({
@@ -473,12 +532,32 @@ class AnalysisService:
                     "probability": prob_score,
                     "correlation_score": score,
                     "bandwidth": guard.bandwidth,
-                    "country": guard.country
+                    "country": guard.country,
+                    "components": components  # Add component scores for debugging
                 })
             
             # Sort by probability
             guard_scores.sort(key=lambda x: x["probability"], reverse=True)
             top_guards = guard_scores[:10]
+            
+            # Log detailed analysis for top 5 guards
+            logger.info("="*60)
+            logger.info("TOP 5 GUARD ANALYSIS BREAKDOWN:")
+            for i, g in enumerate(top_guards[:5], 1):
+                comp = guard_scores[guard_scores.index(g)].get("components", {})
+                logger.info(f"#{i}: {g['nickname']} ({g['country']}) - {g['probability']*100:.2f}%")
+                logger.info(f"  Correlation: {g.get('correlation_score', 0):.4f} (weighted: {comp.get('weighted_similarity', 0):.4f})")
+                logger.info(f"  Bandwidth: {comp.get('raw_bandwidth', 0)/1e6:.1f}MB (norm: {comp.get('normalized_bandwidth', 0):.3f}, weighted: {comp.get('weighted_bandwidth', 0):.4f})")
+                logger.info(f"  Consensus: {comp.get('raw_consensus', 0):.6f} (norm: {comp.get('normalized_consensus', 0):.3f}, weighted: {comp.get('weighted_consensus', 0):.4f})")
+                logger.info(f"  Geographic: {comp.get('geographic_score', 0):.3f} (weighted: {comp.get('weighted_geographic', 0):.4f})")
+            
+            # Log country distribution in top 10
+            country_counts = {}
+            for g in top_guards:
+                country = g.get("country", "Unknown")
+                country_counts[country] = country_counts.get(country, 0) + 1
+            logger.info(f"Country distribution in top 10: {country_counts}")
+            logger.info("="*60)
             
             execution_time = time.time() - start_time
             
@@ -556,10 +635,11 @@ class AnalysisService:
             self.db.rollback()
     
     def get_realtime_analyses(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get recent real-time analysis results"""
+        """Get recent real-time analysis results with IST timestamps"""
         try:
             from sqlalchemy import text
             import json
+            from datetime import timedelta
             
             query = text("""
                 SELECT upload_id, filename, exit_node_fingerprint, exit_node_ip, 
@@ -575,6 +655,13 @@ class AnalysisService:
             analyses = []
             for row in results:
                 metadata = row[4] if isinstance(row[4], dict) else json.loads(row[4]) if row[4] else {}
+                
+                # Convert UTC to IST (UTC+5:30)
+                utc_time = row[5]
+                ist_time = None
+                if utc_time:
+                    ist_time = utc_time + timedelta(hours=5, minutes=30)
+                
                 analyses.append({
                     "analysis_id": row[0],
                     "mode": "real",
@@ -583,7 +670,8 @@ class AnalysisService:
                     "ranked_guards": metadata.get("ranked_guards", []),
                     "statistics": metadata.get("statistics", {}),
                     "execution_time": metadata.get("execution_time"),
-                    "created_at": row[5].isoformat() if row[5] else None,
+                    "created_at": ist_time.isoformat() if ist_time else None,
+                    "created_at_ist": ist_time.strftime("%Y-%m-%d %H:%M:%S IST") if ist_time else None,
                     "status": row[6]
                 })
             

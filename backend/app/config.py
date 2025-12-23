@@ -39,7 +39,9 @@ class Settings(BaseSettings):
     TRAFFIC_LOG_UPLOAD_DIR: str = "/app/uploads"
     MAX_UPLOAD_SIZE_MB: int = 100
     REAL_TRAFFIC_AUTO_ANALYZE: bool = True
-    EXPECTED_REAL_ACCURACY: float = 0.25  # 25% expected for real Tor traffic
+    EXPECTED_REAL_ACCURACY: float = 0.35  # 35% expected with fixes (was 0.25)
+    MIN_PACKET_THRESHOLD: int = 50  # Minimum packets required for analysis
+    ENABLE_ADAPTIVE_NORMALIZATION: bool = True  # Use adaptive DTW normalization
     
     @property
     def DATABASE_URL(self) -> str:

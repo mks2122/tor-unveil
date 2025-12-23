@@ -68,7 +68,7 @@ class TrafficParser:
         total_bytes = sum(packet_sizes)
         duration = relative_timestamps[-1] if relative_timestamps else 0.0
         
-        # Detect bursts (simple threshold-based)
+        # Detect bursts using unified threshold (matches feature_extractor default)
         bursts = self._detect_bursts(relative_timestamps, threshold=0.5)
         
         pattern = {
